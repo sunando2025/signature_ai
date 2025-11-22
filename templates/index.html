@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Signature Verification Tool</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Apply Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Gray-100 */
+        }
+
+        /* Image Preview Styling */
+        .image-preview-container {
+            width: 100%;
+            height: 200px;
+            border: 2px dashed #d1d5db; /* Gray-300 */
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9fafb; /* Gray-50 */
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .image-preview-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .image-preview-container.has-image {
+            border-color: #4f46e5; /* Indigo-600 */
+            border-style: solid;
+            background-color: white;
+        }
+
+        /* Animation for loading spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #fff;
+            border-radius: 50%;
+            width: 1.5rem;
+            height: 1.5rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-6 text-center">
+            AI Signature Verification
+        </h1>
+        <p class="text-center text-gray-600 mb-10">
+            Upload a <span class="font-bold text-indigo-600">Reference Signature</span> (Original) and a <span class="font-bold text-indigo-600">Test Signature</span> (Questioned) to verify authenticity using the loaded PyTorch model.
+        </p>
+
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- LEFT PANEL: Reference Signature -->
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg border border-gray-100 transition hover:shadow-xl">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">1. Reference Image</h2>
+                
+                <!-- Preview Area -->
+                <div id="preview1" class="image-preview-container mb-4">
+                    <span class="text-gray-400 text-sm">No image selected</span>
+                    <img id="img1" class="hidden" alt="Reference Signature">
+                </div>
+
+                <!-- File Input -->
+                <label class="block">
+                    <span class="sr-only">Choose Reference Image</span>
+                    <input type="file" id="fileInput1" accept="image/*" 
+                        class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-indigo-50 file:text-indigo-700
+                        hover:file:bg-indigo-100
+                        cursor-pointer transition"
+                    />
+                </label>
+            </div>
+
+            <!-- MIDDLE PANEL: Test Signature -->
+            <div class="lg:col-span-1 bg-white p-6 rounded-xl shadow-lg border border-gray-100 transition hover:shadow-xl">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4 border-b pb-2">2. Test Image</h2>
+                
+                <!-- Preview Area -->
+                <div id="preview2" class="image-preview-container mb-4">
+                    <span class="text-gray-400 text-sm">No image selected</span>
+                    <img id="img2" class="hidden" alt="Test Signature">
+                </div>
+
+                <!-- File Input -->
+                <label class="block">
+                    <span class="sr-only">Choose Test Image</span>
+                    <input type="file" id="fileInput2" accept="image/*"
+                        class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-indigo-50 file:text-indigo-700
+                        hover:file:bg-indigo-100
+                        cursor-pointer transition"
+                    />
+                </label>
+            </div>
+
+            <!-- RIGHT PANEL: Actions & Results -->
+            <div class="lg:col-span-1 flex flex-col space-y-6">
+                
+                <!-- Verification Action -->
+                <div class="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Actions</h2>
+                    <button id="verifyBtn" onclick="verifySignatures()" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 transition duration-150 shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center">
+                        <span id="verifyText">Run Verification Model</span>
+                        <div id="loadingSpinner" class="spinner ml-2 hidden"></div>
+                    </button>
+                    <p class="text-xs text-gray-500 mt-3 text-center">
+                        This sends images to the backend to run inference using <code>single_model_old.pth</code>.
+                    </p>
+                </div>
+
+                <!-- Results Display -->
+                <div id="resultsCard" class="bg-gray-800 text-white p-6 rounded-xl shadow-2xl hidden">
+                    <h2 class="text-2xl font-bold mb-4 border-b border-gray-600 pb-2">Result</h2>
+                    
+                    <div id="resultMessage" class="text-lg font-medium min-h-[3rem] flex items-center justify-center text-center bg-gray-700 rounded-lg mb-4">
+                        -
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300 text-sm">Similarity Score</span>
+                            <span id="similarityScore" class="text-xl font-mono font-bold text-blue-400">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-300 text-sm">Model Confidence</span>
+                            <span id="confidenceScore" class="text-xl font-mono font-bold text-yellow-400">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="errorBox" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md" role="alert">
+                    <p class="font-bold">Error</p>
+                    <p id="errorMessage" class="text-sm">Something went wrong.</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+    {% raw %}
+        // --- Constants ---
+        // Note: Ensure your FastAPI backend is running on this port
+        const API_URL = '/verify_signature';
+        
+        // State to hold Base64 strings
+        let refImageBase64 = null;
+        let testImageBase64 = null;
+
+        // Elements
+        const fileInput1 = document.getElementById('fileInput1');
+        const fileInput2 = document.getElementById('fileInput2');
+        const preview1 = document.getElementById('preview1');
+        const preview2 = document.getElementById('preview2');
+        const img1 = document.getElementById('img1');
+        const img2 = document.getElementById('img2');
+        
+        const verifyBtn = document.getElementById('verifyBtn');
+        const verifyText = document.getElementById('verifyText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        
+        const resultsCard = document.getElementById('resultsCard');
+        const resultMessage = document.getElementById('resultMessage');
+        const similarityScore = document.getElementById('similarityScore');
+        const confidenceScore = document.getElementById('confidenceScore');
+        const errorBox = document.getElementById('errorBox');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // --- Utility: Convert File to Base64 ---
+        const readFileToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (error) => reject(error);
+            });
+        };
+
+        // --- Event Listeners for File Inputs ---
+        
+        fileInput1.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    refImageBase64 = await readFileToBase64(file);
+                    // Update Preview
+                    img1.src = refImageBase64;
+                    img1.classList.remove('hidden');
+                    preview1.querySelector('span').classList.add('hidden');
+                    preview1.classList.add('has-image');
+                    hideError();
+                } catch (err) {
+                    showError("Failed to read Reference image.");
+                }
+            }
+        });
+
+        fileInput2.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    testImageBase64 = await readFileToBase64(file);
+                    // Update Preview
+                    img2.src = testImageBase64;
+                    img2.classList.remove('hidden');
+                    preview2.querySelector('span').classList.add('hidden');
+                    preview2.classList.add('has-image');
+                    hideError();
+                } catch (err) {
+                    showError("Failed to read Test image.");
+                }
+            }
+        });
+
+        // --- Main Verification Logic ---
+
+        async function verifySignatures() {
+            // 1. Validation
+            if (!refImageBase64 || !testImageBase64) {
+                showError("Please upload both Reference and Test signature images.");
+                return;
+            }
+
+            // 2. UI Loading State
+            verifyBtn.disabled = true;
+            verifyText.textContent = 'Processing...';
+            loadingSpinner.classList.remove('hidden');
+            hideError();
+            resultsCard.classList.add('hidden');
+
+            // 3. Prepare Payload (Matches Pydantic model in main.py)
+            const payload = {
+                image1: refImageBase64,
+                image2: testImageBase64
+            };
+
+            try {
+                // 4. Call API
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || `Server Error: ${response.status}`);
+                }
+
+                // 5. Display Results
+                resultsCard.classList.remove('hidden');
+                
+                const isGenuine = data.classification === 'Genuine';
+                
+                // Format Scores
+                similarityScore.textContent = data.similarity;
+                confidenceScore.textContent = (data.confidence * 100).toFixed(2) + '%';
+                
+                resultMessage.textContent = data.classification.toUpperCase();
+                
+                // Dynamic Styling based on result
+                if (isGenuine) {
+                    resultMessage.className = 'text-xl font-bold min-h-[3rem] flex items-center justify-center text-center bg-green-600 rounded-lg mb-4 animate-pulse';
+                    similarityScore.className = 'text-xl font-mono font-bold text-green-400';
+                } else {
+                    resultMessage.className = 'text-xl font-bold min-h-[3rem] flex items-center justify-center text-center bg-red-600 rounded-lg mb-4';
+                    similarityScore.className = 'text-xl font-mono font-bold text-red-400';
+                }
+
+            } catch (err) {
+                console.error(err);
+                showError(err.message || "An unexpected error occurred during verification.");
+            } finally {
+                // 6. Reset Button State
+                verifyBtn.disabled = false;
+                verifyText.textContent = 'Run Verification Model';
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        // --- UI Helpers ---
+
+        function showError(msg) {
+            errorBox.classList.remove('hidden');
+            errorMessage.textContent = msg;
+        }
+
+        function hideError() {
+            errorBox.classList.add('hidden');
+            errorMessage.textContent = "";
+        }
+    {% endraw %}
+    </script>
+</body>
+</html>
